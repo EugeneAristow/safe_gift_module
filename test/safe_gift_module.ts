@@ -77,7 +77,7 @@ async function generateSignatures(
     return aggregatedSignatures;
 }
 
-describe ("SafeGiftModule integration tests", () => {
+describe ("SafeGiftModule x GnosisSafe integration tests", () => {
     let deployer, owner1, owner2, taker, another_taker: ethers.Signer;
     let owner1Wallet, owner2Wallet: ethers.Wallet;
 
@@ -89,6 +89,10 @@ describe ("SafeGiftModule integration tests", () => {
     let giftToken: ethers.Contract;
 
     before(async function () {
+        // Deploy GnosisSafeProxyFactory, GnosisSafeProxy, GnosisSafe singleton,
+        // TestToken contract and enable SafeGiftModule as a GnosisSafeProxy module
+
+        // Fork mainnet state
         await forkSpecificState();
         // Access some deafult signers
         [deployer, owner1, owner2, taker, another_taker] = await ethers.getSigners();
@@ -97,13 +101,15 @@ describe ("SafeGiftModule integration tests", () => {
         owner1Wallet = ethers.Wallet.fromMnemonic(accounts.mnemonic, accounts.path + `/${1}`);
         owner2Wallet = ethers.Wallet.fromMnemonic(accounts.mnemonic, accounts.path + `/${2}`);
 
+        // Deploy TestToken contract
         const testTokenCF = await ethers.getContractFactory("TestToken");
         giftToken = await testTokenCF.connect(deployer).deploy();
 
+        // Deploy GnosisSafeProxyFactory contract
         const gnosisSafeProxyFactoryCF = await ethers.getContractFactory("GnosisSafeProxyFactory");
         gnosisSafeProxyFactory = await gnosisSafeProxyFactoryCF.connect(deployer).deploy();
 
-        // Create Singleton
+        // Create GnosisSafe (acts as a singleton)
         const gnosisSafeCF = await ethers.getContractFactory("GnosisSafe");
         gnosisSafe = await gnosisSafeCF.connect(deployer).deploy();
 
@@ -135,9 +141,12 @@ describe ("SafeGiftModule integration tests", () => {
         const safeGiftModuleCF = await ethers.getContractFactory("SafeGiftModule");
         safeGiftModule = await safeGiftModuleCF.connect(deployer).deploy(giftToken.address, gnosisSafeProxy.address);
 
-        // Send all minted tokens to Mutlisig
+        // Send all minted tokens to GnosisSafeProxy
         await giftToken.connect(deployer).transfer(
             gnosisSafeProxy.address, await giftToken.connect(deployer).balanceOf(deployer.address));
+        // Control expected side-effect
+        const proxyBalance = await giftToken.balanceOf(gnosisSafeProxy.address);
+        expect(proxyBalance.gt(0)).to.be.true;
 
         const enableModuleCalldata = gnosisSafe.interface.encodeFunctionData(
             "enableModule",
@@ -240,6 +249,18 @@ describe ("SafeGiftModule integration tests", () => {
             );
             const takerBalanceAfter = await giftToken.balanceOf(another_taker.address);
             expect(takerBalanceAfter.sub(takerBalanceBefore).eq(GIFT_AMOUNT)).to.be.true;
+        });
+
+        it("Check takeTheGift reverts if the deal is expired", async () => {
+            // Set 0 expiry (means the is expired)
+            await safeGiftModule.connect(owner1).setExpiry(0);
+
+            expect(ethers.BigNumber.from(await safeGiftModule.connect(owner1).expiry()).eq(0)).to.be.true;
+            expect(safeGiftModule.connect(owner1).takeTheGift(
+                GIFT_SIGNATURES,
+                owner1.address,
+                GIFT_AMOUNT
+            )).to.be.revertedWith("SafeGiftModule: The gift deal is expired");
         });
     });
 });
