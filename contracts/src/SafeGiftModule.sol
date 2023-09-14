@@ -10,17 +10,20 @@ contract SafeGiftModule {
     /// @dev NOTE: actually a nonce value is not important in our 'gift'
     /// @dev scenario hence some specific value is hardcoded.
     uint private constant GIFT_NONCE = 42;
+    /// @dev Since everyone should be able to receive the gift predefine.
+    /// @dev Some 'receiver' address.
+    address private constant PREDEFINED_GIFT_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     /// @dev Due date of token hand-out availability.
     uint64 public expiry;
+    /// @dev Track addresses which have already received the tokens.
+    mapping (address => bool) public alreadyGifted;
     /// @dev The token for hand-out.
     address private immutable tokenToGift;
     /// @dev Specific to this module GnosisSafe instance.
     /// @dev NOTE: Actually it's a GnosisSafeProxy wrapper
     /// @dev which proxies to the abi-compatible calls to singleton GnosisSafe.
     GnosisSafe private immutable safeInstance;
-    /// @dev Track addresses which have already received the tokens.
-    mapping (address => bool) private alreadyGifted;
 
     constructor (address token, GnosisSafe target) {
         tokenToGift = token;
@@ -39,19 +42,18 @@ contract SafeGiftModule {
 
     function takeTheGift(
         bytes memory signatures,
-        address token,
-        address to,
+        address taker,
         uint amount
     ) external onlyEnabled() {
         // Check who's claiming to prevent the abuse.
-        require(!(alreadyGifted[msg.sender] && alreadyGifted[to]),
+        require(!(alreadyGifted[msg.sender] && alreadyGifted[taker]),
             "SafeGiftModule: You have already received the gift");
         // Check for expiry.
-        require(block.timestamp > expiry,
+        require(block.timestamp < expiry,
             "SafeGiftModule: The gift deal is expired");
 
         // Encode calldata for tokens transfer.
-        bytes memory data = abi.encodeWithSignature("transfer(address,uint256)", to, amount);
+        bytes memory data = abi.encodeWithSignature("transfer(address,uint256)", PREDEFINED_GIFT_ADDRESS, amount);
 
         // Check signatures validity.
         {
@@ -59,7 +61,7 @@ contract SafeGiftModule {
             bytes memory txHashData =
                 safeInstance.encodeTransactionData(
                     // Transaction info
-                    to,
+                    tokenToGift,
                     0,
                     data,
                     Enum.Operation.Call,
@@ -80,10 +82,11 @@ contract SafeGiftModule {
         }
 
         // CHECK-EFFECTS-INTERACTION pattern.
-        alreadyGifted[msg.sender] == true;
-        alreadyGifted[to] == true;
+        alreadyGifted[msg.sender] = true;
+        alreadyGifted[taker] = true;
         // Perform target action and revert if failed.
-        require(safeInstance.execTransactionFromModule(token, 0, data, Enum.Operation.Call),
+        bytes memory transferCalldata = abi.encodeWithSignature("transfer(address,uint256)", taker, amount);
+        require(safeInstance.execTransactionFromModule(tokenToGift, 0, transferCalldata, Enum.Operation.Call),
             "SafeGiftModule: Could not execute token transfer");
     }
 
