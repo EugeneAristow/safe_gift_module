@@ -10,7 +10,7 @@ const forkSpecificState = async (blockNumber = BLOCK_NUMBER) => {
       params: [
         {
             forking: {
-                jsonRpcUrl: process.env.ETH_URL,
+                jsonRpcUrl: process.env.PROVIDER_URL,
                 blockNumber,
             },
         },
