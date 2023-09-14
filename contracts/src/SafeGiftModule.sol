@@ -32,12 +32,17 @@ contract SafeGiftModule {
         _;
     }
 
+    modifier onlyEnabled() {
+        require(safeInstance.isModuleEnabled(address(this)), "SafeGiftModule: module isn't enabled");
+        _;
+    }
+
     function takeTheGift(
         bytes memory signatures,
         address token,
         address to,
         uint amount
-    ) external {
+    ) external onlyEnabled() {
         // Check who's claiming to prevent the abuse.
         require(!(alreadyGifted[msg.sender] && alreadyGifted[to]),
             "SafeGiftModule: You have already received the gift");

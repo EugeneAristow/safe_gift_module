@@ -1,4 +1,8 @@
+import * as dotenv from "dotenv";
 import { HardhatUserConfig } from "hardhat/config";
+import "@nomiclabs/hardhat-waffle";
+
+dotenv.config();
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -11,7 +15,16 @@ const config: HardhatUserConfig = {
             runs: 100,
           },
         }
-      }
+      },
+      {
+        version: "0.6.5",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 100,
+          },
+        }
+      },
    ]
   },
   networks: {
