@@ -4,13 +4,13 @@ pragma solidity >=0.7.0 <0.9.0;
 import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 
-import "hardhat/console.sol";
-
+/// @dev GnosisSafe module which supports the token hand-out mechanism.
+/// @dev Relates to specific GnosisSafe instance and specific token.
 contract SafeGiftModule {
     /// @dev Predefine some nonce value for 'gift' scenario
-    /// @dev used to check signature validity.
-    /// @dev NOTE: actually a nonce value is not important in our 'gift'
-    /// @dev scenario hence some specific value is hardcoded.
+    ///      used to check signature validity.
+    ///      NOTE: actually a nonce value is not important in our 'gift'
+    ///      scenario hence some specific value is hardcoded.
     uint private constant GIFT_NONCE = 42;
 
     /// @dev Extra message hash for additional securiry.
@@ -19,15 +19,16 @@ contract SafeGiftModule {
     /// @dev The token for hand-out.
     address private immutable tokenToGift;
     /// @dev Specific to this module GnosisSafe instance.
-    /// @dev NOTE: Actually it's a GnosisSafeProxy wrapper
-    /// @dev which proxies to the abi-compatible calls to singleton GnosisSafe.
+    ///      NOTE: Actually it's a GnosisSafeProxy wrapper
+    ///      which proxies to the abi-compatible calls to singleton GnosisSafe.
     GnosisSafe private immutable safeInstance;
 
-    /// @dev Due date of token hand-out availability.
+    /// @dev Due date of token hand-out deal availability.
     uint64 public expiry;
     /// @dev Track addresses which have already received the tokens.
     mapping (address => bool) public alreadyGifted;
 
+    /// @dev Also calculates special message hash based on argumets.
     constructor (address token, GnosisSafe target) {
         tokenToGift = token;
         safeInstance = target;
@@ -45,22 +46,29 @@ contract SafeGiftModule {
         );
     }
 
+    /// @dev onlyOwner implementation via usage of related Safe
     modifier onlyOwner() {
         require(safeInstance.isOwner(msg.sender), "SafeGiftModule: onlyOwner");
         _;
     }
 
+    /// @dev Checks whether this module is enabled by related GnosisSafe
     modifier onlyEnabled() {
         require(safeInstance.isModuleEnabled(address(this)), "SafeGiftModule: module isn't enabled");
         _;
     }
 
+    /// @dev Transfers the gift deal tokens to taker if owner signatures are valid.
+    /// @param signatures Signatures of related GnosisSafe owners.
+    /// @param taker The recipient of tokens.
+    /// @param amount The hand-out tokens amount.
     function takeTheGift(
         bytes memory signatures,
         address taker,
         uint amount
     ) external onlyEnabled() {
         // Check who's claiming to prevent the abuse.
+        // If some account has already taken part in the deal then also revert.
         require(!(alreadyGifted[msg.sender] && alreadyGifted[taker]),
             "SafeGiftModule: You have already received the gift");
         // Check for expiry.
@@ -68,33 +76,31 @@ contract SafeGiftModule {
             "SafeGiftModule: The gift deal is expired");
 
         // Check signatures validity.
-        {
-            // Encode the gift deal message data.
-            bytes memory giftDealData = abi.encodePacked(GIFT_DEAL_MSG_HASH, amount);
+        // Encode the gift deal message data.
+        bytes memory giftDealData = abi.encodePacked(GIFT_DEAL_MSG_HASH, amount);
 
-            // Calculate message data which should be signed by owners.
-            bytes memory txHashData =
-                safeInstance.encodeTransactionData(
-                    // Transaction info
-                    tokenToGift,
-                    0,
-                    giftDealData,
-                    Enum.Operation.Call,
-                    0,
-                    // Payment info
-                    0,
-                    0,
-                    address(0),
-                    address(0),
-                    // Signature info
-                    GIFT_NONCE
-                );
-            // Calculate tx hash to check validity of passed signatures.
-            bytes32 txHash = keccak256(txHashData);
-            // The call result isn't handled to pass original GnosisSafe
-            // revert msg/code if any.
-            safeInstance.checkSignatures(txHash, txHashData, signatures);
-        }
+        // Calculate message data which should be signed by owners.
+        bytes memory txHashData =
+            safeInstance.encodeTransactionData(
+                // Transaction info
+                tokenToGift,
+                0,
+                giftDealData,
+                Enum.Operation.Call,
+                0,
+                // Payment info
+                0,
+                0,
+                address(0),
+                address(0),
+                // Signature info
+                GIFT_NONCE
+            );
+        // Calculate tx hash to check validity of passed signatures.
+        bytes32 txHash = keccak256(txHashData);
+        // The call result isn't handled to pass original GnosisSafe
+        // revert msg/code if any.
+        safeInstance.checkSignatures(txHash, txHashData, signatures);
 
         // CHECK-EFFECTS-INTERACTION pattern.
         alreadyGifted[msg.sender] = true;
@@ -105,6 +111,8 @@ contract SafeGiftModule {
             "SafeGiftModule: Could not execute token transfer");
     }
 
+    /// @dev Sets expiry of the gift deal.
+    /// @param newExpiry Timestamp since Unix epoch.
     function setExpiry(uint64 newExpiry) external onlyOwner {
         expiry = newExpiry;
     }
