@@ -30,7 +30,7 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       forking: {
-        url: process.env.ETH_URL ?? "",
+        url: process.env.PROVIDER_URL ?? "",
       },
       // Specify desired chain id for fork here.
       // Default hardhat chain id is 31337.

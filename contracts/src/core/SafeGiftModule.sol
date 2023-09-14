@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.7.0 <0.9.0;
 
+/// @dev Original Gnosis contract deps are left for strictness,
+///      simplicity and due to the lack of Interfaces.
+///      Interfaces are preferable in producrion case.
 import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 
 /// @dev GnosisSafe module which supports the token hand-out mechanism.
 /// @dev Relates to specific GnosisSafe instance and specific token.
 contract SafeGiftModule {
-    /// @dev Predefine some nonce value for 'gift' scenario
-    ///      used to check signature validity.
-    ///      NOTE: actually a nonce value is not important in our 'gift'
-    ///      scenario hence some specific value is hardcoded.
+    /// @dev Used to check signatures validity.
+    ///      NOTE: actually a nonce value is not important in our 'gift' case
+    ///      from GnosisSafe perspective hence some specific value is hardcoded.
     uint private constant GIFT_NONCE = 42;
 
     /// @dev Extra message hash for additional securiry.

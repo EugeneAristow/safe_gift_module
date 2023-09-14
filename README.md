@@ -6,7 +6,9 @@ specific token. An account is able to request the gift deal tokens via
 'takeTheGift' external method in case it passes related GnosisSafe owners
 signatures considering set threshold and expiry time.
 
-To run auto-tests in local mainnet fork:
+# Instruction
+<br>NOTE: tested on MacOS 13.2 but should be relevant for Ubuntu as well
+<br>To run auto-tests in local mainnet fork:
 
 0. Set up environment and install required packages
 1. Set the provider URL in .env.example and copy it to .env
