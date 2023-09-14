@@ -4,20 +4,18 @@ pragma solidity >=0.7.0 <0.9.0;
 import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 
+import "hardhat/console.sol";
+
 contract SafeGiftModule {
-    /// @dev Some 'reserved' nonce value for 'gift' scenario
+    /// @dev Predefine some nonce value for 'gift' scenario
     /// @dev used to check signature validity.
     /// @dev NOTE: actually a nonce value is not important in our 'gift'
     /// @dev scenario hence some specific value is hardcoded.
     uint private constant GIFT_NONCE = 42;
-    /// @dev Since everyone should be able to receive the gift predefine.
-    /// @dev Some 'receiver' address.
-    address private constant PREDEFINED_GIFT_ADDRESS = 0x0000000000000000000000000000000000000000;
 
-    /// @dev Due date of token hand-out availability.
-    uint64 public expiry;
-    /// @dev Track addresses which have already received the tokens.
-    mapping (address => bool) public alreadyGifted;
+    /// @dev Extra message hash for additional securiry.
+    bytes32 public immutable GIFT_DEAL_MSG_HASH;
+
     /// @dev The token for hand-out.
     address private immutable tokenToGift;
     /// @dev Specific to this module GnosisSafe instance.
@@ -25,9 +23,26 @@ contract SafeGiftModule {
     /// @dev which proxies to the abi-compatible calls to singleton GnosisSafe.
     GnosisSafe private immutable safeInstance;
 
+    /// @dev Due date of token hand-out availability.
+    uint64 public expiry;
+    /// @dev Track addresses which have already received the tokens.
+    mapping (address => bool) public alreadyGifted;
+
     constructor (address token, GnosisSafe target) {
         tokenToGift = token;
         safeInstance = target;
+
+        // Compute the gift deal message hash.
+        GIFT_DEAL_MSG_HASH = keccak256(
+            abi.encodePacked(
+                keccak256(
+                    "This is the arbitrary amount token hand-out from us"
+                    "for everyone. Don't abuse this gift and use only once."
+                ),
+                token,
+                target
+            )
+        );
     }
 
     modifier onlyOwner() {
@@ -52,18 +67,18 @@ contract SafeGiftModule {
         require(block.timestamp < expiry,
             "SafeGiftModule: The gift deal is expired");
 
-        // Encode calldata for tokens transfer.
-        bytes memory data = abi.encodeWithSignature("transfer(address,uint256)", PREDEFINED_GIFT_ADDRESS, amount);
-
         // Check signatures validity.
         {
+            // Encode the gift deal message data.
+            bytes memory giftDealData = abi.encodePacked(GIFT_DEAL_MSG_HASH, amount);
+
             // Calculate message data which should be signed by owners.
             bytes memory txHashData =
                 safeInstance.encodeTransactionData(
                     // Transaction info
                     tokenToGift,
                     0,
-                    data,
+                    giftDealData,
                     Enum.Operation.Call,
                     0,
                     // Payment info

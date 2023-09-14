@@ -202,23 +202,22 @@ describe ("SafeGiftModule x GnosisSafe integration tests", () => {
 
     describe("takeTheGift integration test", () => {
         const GIFT_NONCE = 42;
-        const PREDEFINED_GIFT_ADDRESS = "0x0000000000000000000000000000000000000000";
         const GIFT_AMOUNT = 10;
-        let GIFT_SIGNATURES = "";
+
+        let GIFT_SIGNATURES :string;
+        let GIFT_DEAL_MSG_HASH :string;
 
         it('Call of takeTheGift leads to the token hand-out', async () => {
-            const transferCalldata = giftToken.interface.encodeFunctionData(
-                "transfer",
-                [
-                    PREDEFINED_GIFT_ADDRESS, // to
-                    GIFT_AMOUNT, // amount
-                ]
-            );
+            // Get the extra message hash from the module instance.
+            GIFT_DEAL_MSG_HASH = await safeGiftModule.GIFT_DEAL_MSG_HASH();
+
+            const giftDealData = ethers.utils.solidityPack([ "bytes32", "uint256" ], [ GIFT_DEAL_MSG_HASH, GIFT_AMOUNT ]);
+
             GIFT_SIGNATURES = await generateSignatures(
                 gnosisSafeProxy,
                 owner1Wallet,
                 owner2Wallet,
-                transferCalldata,
+                giftDealData,
                 giftToken.address,
                 GIFT_NONCE
             )
